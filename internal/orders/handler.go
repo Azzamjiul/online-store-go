@@ -3,6 +3,8 @@ package orders
 import (
 	"encoding/json"
 	"net/http"
+	"online-store-go/pkg/error_utils"
+	"online-store-go/pkg/logger_utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,12 +26,18 @@ func NewHandler(service Service) Handler {
 func (h *handler) CreateOrder(c *gin.Context) {
 	jsonData, jsonErr := c.GetRawData()
 	if jsonErr != nil {
-		c.JSON(http.StatusBadRequest, jsonErr.Error())
+		logger_utils.Error("Error when get raw data", jsonErr)
+		c.JSON(http.StatusBadRequest, error_utils.NewBadRequestError("invalid json body"))
 		return
 	}
 
 	var data map[string]interface{}
-	json.Unmarshal(jsonData, &data)
+	jsonErr = json.Unmarshal(jsonData, &data)
+	if jsonErr != nil {
+		logger_utils.Error("Error when unmarshal jsonData", jsonErr)
+		c.JSON(http.StatusBadRequest, error_utils.NewBadRequestError("invalid json body"))
+		return
+	}
 
 	err := h.s.CreateOrder(data)
 	if err != nil {

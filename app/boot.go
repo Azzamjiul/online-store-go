@@ -18,7 +18,7 @@ const (
 )
 
 var (
-	Client *sql.DB
+	PostgreClient *sql.DB
 )
 
 func boot() {
@@ -39,12 +39,12 @@ func initPostgreSQL() {
 		os.Getenv(postgres_users_database),
 	)
 
-	Client, err = sql.Open("postgres", dataSourceName)
+	PostgreClient, err = sql.Open("postgres", dataSourceName)
 	if err != nil {
 		panic(err)
 	}
 
-	if err = Client.Ping(); err != nil {
+	if err = PostgreClient.Ping(); err != nil {
 		panic(err)
 	}
 	logger_utils.Info("Database succesfully configured")

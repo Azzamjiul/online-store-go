@@ -1,7 +1,6 @@
 package orders
 
 import (
-	"fmt"
 	"online-store-go/pkg/error_utils"
 )
 
@@ -10,7 +9,7 @@ type service struct {
 }
 
 type Service interface {
-	CreateOrder(interface{}) *error_utils.RestErr
+	CreateOrder(map[string]interface{}) *error_utils.RestErr
 }
 
 func NewService(repo Repo) Service {
@@ -19,7 +18,11 @@ func NewService(repo Repo) Service {
 	}
 }
 
-func (s *service) CreateOrder(data interface{}) *error_utils.RestErr {
-	fmt.Println(data)
+func (s *service) CreateOrder(data map[string]interface{}) *error_utils.RestErr {
+	// TODO: create order with the order items
+	err := s.repo.CreateOrder(data)
+	if err != nil {
+		return err
+	}
 	return nil
 }
