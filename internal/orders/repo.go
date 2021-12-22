@@ -1,12 +1,15 @@
 package orders
 
 import (
-	"fmt"
+	"online-store-go/app/postgresql"
+	"online-store-go/pkg/date_utils"
 	"online-store-go/pkg/error_utils"
+	"online-store-go/pkg/logger_utils"
+	"time"
 )
 
 const (
-// queryCreateOrder = "INSERT INTO orders (user_id, status, )"
+	queryCreateOrder = "INSERT INTO orders(user_id, status, total, expired_date) VALUES ($1, $2, $3, $4) RETURNING id"
 )
 
 type repo struct {
@@ -34,6 +37,8 @@ func (r *repo) CreateOrder(data map[string]interface{}) *error_utils.RestErr {
 	}
 	request.Total = uint64(data["total"].(float64))
 
+	request.ExpiredDate = date_utils.GetDBFormat(time.Now().UTC().Add(10 * time.Hour))
+
 	// Order Items
 	for _, item := range data["items"].([]interface{}) {
 		orderItem := OrderItem{
@@ -45,6 +50,21 @@ func (r *repo) CreateOrder(data map[string]interface{}) *error_utils.RestErr {
 		request.Items = append(request.Items, orderItem)
 	}
 
-	fmt.Println(request)
+	// Save Order to database
+	stmt, err := postgresql.Client.Prepare(queryCreateOrder)
+	if err != nil {
+		logger_utils.Error("error when trying to prepare create order statement, ", err)
+		return error_utils.NewInternalServerError("database error")
+	}
+	defer stmt.Close()
+
+	err = stmt.QueryRow(request.Order.UserID, 0, request.Order.Total, request.ExpiredDate).Scan(&request.Order.ID)
+	if err != nil {
+		logger_utils.Error("error when trying to create order", err)
+		return error_utils.NewInternalServerError("database error")
+	}
+
+	// Save Order Items to database
+
 	return nil
 }
