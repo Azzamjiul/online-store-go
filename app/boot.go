@@ -5,5 +5,4 @@ import (
 )
 
 func boot() {
-	initHandler()
 }

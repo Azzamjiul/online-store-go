@@ -9,7 +9,6 @@ var (
 )
 
 func StartApplication() {
-	boot()
 	route()
 	router.Run(":8080")
 }
