@@ -10,3 +10,57 @@ Sistem melakukan validasi beberapa kali untuk memastikan:
 - **Stok berhasil diperbarui setelah ada order yang masuk**
 
 Berikut diagram alur yang diajukan.
+
+## Functional Testing
+
+## Case berhasil
+### Request
+```
+curl --location --request POST 'localhost:8080/orders' --header 'Content-Type: application/json' --data-raw '{
+    "user_id": 1,
+    "total": 7000,
+    "items" : [
+        {
+            "item_id": 1,
+            "quantity": 3,
+            "price": 1000
+        },
+        {
+            "item_id": 2,
+            "quantity": 2,
+            "price": 2000
+        }
+    ]
+}'
+```
+
+### Response
+```
+{"message":"order created successfully"}
+```
+
+## Case gagal
+### Request
+```
+curl --location --request POST 'localhost:8080/orders' --header 'Content-Type: application/json' --data-raw '{
+    "user_id": 1,
+    "total": 7000,
+    "items" : [
+        {
+            "item_id": 1,
+            "quantity": 30,
+            "price": 1000
+        },
+        {
+            "item_id": 2,
+            "quantity": 2,
+            "price": 2000
+        }
+    ]
+}'
+```
+
+### Response
+```
+{"message":"insufficient stock of items (Product 1)","status":400,"error":"bad_request"}
+```
