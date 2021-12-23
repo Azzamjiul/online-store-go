@@ -26,7 +26,6 @@ func NewService(repo Repo) Service {
 }
 
 func (s *service) CreateOrder(data map[string]interface{}) *error_utils.RestErr {
-	// TODO: create order with the order items
 	request := CreateOrderRequest{}
 
 	// Order properties
@@ -56,7 +55,10 @@ func (s *service) CreateOrder(data map[string]interface{}) *error_utils.RestErr 
 			Price:    int((item.(map[string]interface{})["price"]).(float64)),
 		}
 
+		request.Items = append(request.Items, orderItem)
+
 		if data["total"] == nil {
+			s.repo.DeleteOrderByID(int(request.Order.ID))
 			return error_utils.NewBadRequestError("total is missing")
 		}
 
@@ -68,11 +70,13 @@ func (s *service) CreateOrder(data map[string]interface{}) *error_utils.RestErr 
 
 		item, err := s.itemsRepo.FindItemByID(int(orderItem.ItemID))
 		if err != nil {
+			s.repo.DeleteOrderByID(int(request.Order.ID))
 			return err
 		}
 
 		// validate if the stock is sufficient before order
 		if item.Stock < orderItem.Quantity {
+			s.repo.DeleteOrderByID(int(request.Order.ID))
 			logger_utils.Error("insufficient stock of items", fmt.Errorf("insufficient stock of items (%s)", item.Name))
 			return error_utils.NewBadRequestError(fmt.Sprintf("insufficient stock of items (%s)", item.Name))
 		}
@@ -80,7 +84,37 @@ func (s *service) CreateOrder(data map[string]interface{}) *error_utils.RestErr 
 
 	err = s.repo.CreateOrderItems(&request, valueStrings, valueArgs)
 	if err != nil {
+		s.repo.DeleteOrderByID(int(request.Order.ID))
+		s.repo.DeleteAllOrderItemsByOrderID(int(request.Order.ID))
 		return err
 	}
+
+	// Update items stock after all order items recorded
+	valueStrings = []string{}
+	valueArgs = []interface{}{}
+	for k, v := range request.Items {
+		item, err := s.itemsRepo.FindItemByID(int(v.ItemID))
+		if err != nil {
+			s.repo.DeleteAllOrderItemsByOrderID(int(request.Order.ID))
+			s.repo.DeleteOrderByID(int(request.Order.ID))
+			return err
+		}
+
+		totalColumn := 5
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d)", (k*totalColumn)+1, (k*totalColumn)+2, (k*totalColumn)+3, (k*totalColumn)+4, (k*totalColumn)+5))
+		valueArgs = append(valueArgs, item.ID)
+		valueArgs = append(valueArgs, item.SKU)
+		valueArgs = append(valueArgs, item.Name)
+		valueArgs = append(valueArgs, (item.Stock - v.Quantity))
+		valueArgs = append(valueArgs, item.Price)
+	}
+
+	err = s.itemsRepo.UpsertItemsStock(valueStrings, valueArgs)
+	if err != nil {
+		s.repo.DeleteAllOrderItemsByOrderID(int(request.Order.ID))
+		s.repo.DeleteOrderByID(int(request.Order.ID))
+		return err
+	}
+
 	return nil
 }

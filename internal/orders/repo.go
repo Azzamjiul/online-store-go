@@ -10,10 +10,10 @@ import (
 )
 
 const (
-	queryCreateOrder      = "INSERT INTO orders(user_id, status, total, expired_date) VALUES ($1, $2, $3, $4) RETURNING id"
-	queryInsertOrderItems = "INSERT INTO order_items(order_id, item_id, quantity, price) VALUES "
-	queryFindItemByID     = "SELECT sku, name, stock, price FROM items WHERE id = $1"
-	queryUpdateItemStock  = "UPDATE items SET stock = $1 WHERE id = $2"
+	queryCreateOrder                  = "INSERT INTO orders(user_id, status, total, expired_date) VALUES ($1, $2, $3, $4) RETURNING id"
+	queryInsertOrderItems             = "INSERT INTO order_items(order_id, item_id, quantity, price) VALUES "
+	queryDeleteOrderByID              = "DELETE FROM orders WHERE id = $1"
+	queryDeleteAllOrderItemsByOrderID = "DELETE FROM order_items WHERE order_id = $1"
 )
 
 type repo struct {
@@ -23,6 +23,8 @@ type repo struct {
 type Repo interface {
 	CreateOrder(*CreateOrderRequest) *error_utils.RestErr
 	CreateOrderItems(*CreateOrderRequest, []string, []interface{}) *error_utils.RestErr
+	DeleteOrderByID(int) *error_utils.RestErr
+	DeleteAllOrderItemsByOrderID(int) *error_utils.RestErr
 }
 
 func NewRepo() Repo {
@@ -89,6 +91,40 @@ func (r *repo) CreateOrderItems(request *CreateOrderRequest, valueStrings []stri
 	txErr = tx.Commit()
 	if txErr != nil {
 		logger_utils.Error("error when commit transaction", txErr)
+		return error_utils.NewInternalServerError("database error")
+	}
+
+	return nil
+}
+
+func (r *repo) DeleteOrderByID(id int) *error_utils.RestErr {
+	stmt, err := r.Client.Prepare(queryDeleteAllOrderItemsByOrderID)
+	if err != nil {
+		logger_utils.Error("error when prepare delete order by id statement", err)
+		return error_utils.NewInternalServerError("database error")
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(id)
+	if err != nil {
+		logger_utils.Error("error when execute delete order by id statement", err)
+		return error_utils.NewInternalServerError("database error")
+	}
+
+	return nil
+}
+
+func (r *repo) DeleteAllOrderItemsByOrderID(id int) *error_utils.RestErr {
+	stmt, err := r.Client.Prepare(queryDeleteOrderByID)
+	if err != nil {
+		logger_utils.Error("error when prepare delete order by id statement", err)
+		return error_utils.NewInternalServerError("database error")
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(id)
+	if err != nil {
+		logger_utils.Error("error when execute delete order by id statement", err)
 		return error_utils.NewInternalServerError("database error")
 	}
 
