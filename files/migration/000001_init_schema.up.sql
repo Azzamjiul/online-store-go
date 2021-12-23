@@ -38,3 +38,6 @@ ALTER TABLE "order_items" ADD FOREIGN KEY ("order_id") REFERENCES "orders" ("id"
 ALTER TABLE "order_items" ADD FOREIGN KEY ("item_id") REFERENCES "items" ("id");
 
 CREATE INDEX ON "items" ("sku");
+
+INSERT INTO items("sku", "name", "stock", "price") VALUES ('A0001', 'Product 1', 10, 1000), ('A0002', 'Product 2', 10, 2000);
+INSERT INTO users("email", "fullname", "password") VALUES ('user1@mail.com', 'User 1', 'password');

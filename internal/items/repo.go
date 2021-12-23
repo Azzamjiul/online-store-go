@@ -80,10 +80,6 @@ func (r *repo) UpsertItemsStock(valueStrings []string, valueArgs []interface{}) 
 	// Save Order Items
 	statement := fmt.Sprintf("%s %s %s", queryUpsertItemsStock, strings.Join(valueStrings, ","), queryUpsertItemsStockEnd)
 
-	// logger_utils.Info(statement)
-	// logger_utils.Info(fmt.Sprintf("%v", valueArgs...))
-	// return error_utils.NewInternalServerError("database error")
-
 	stmt, err := r.Client.Prepare(statement)
 	if err != nil {
 		tx.Rollback()
