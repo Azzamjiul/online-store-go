@@ -9,7 +9,10 @@ Sistem melakukan validasi beberapa kali untuk memastikan:
 - **Order yang dilakukan tidak melebihi stok yang ada**
 - **Stok berhasil diperbarui setelah ada order yang masuk**
 
-Berikut diagram alur yang diajukan.
+### ERD
+![ERD](/readme/erd.png "ERD")
+### Berikut diagram alur yang diajukan.
+![Diagaram Validasi](/readme/validasi.png "Diagaram Validasi")
 
 ## Functional Testing
 
