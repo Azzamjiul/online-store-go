@@ -4,18 +4,16 @@ import (
 	"database/sql"
 	"fmt"
 	"online-store-go/app/postgresql"
-	"online-store-go/internal/items"
-	"online-store-go/pkg/date_utils"
 	"online-store-go/pkg/error_utils"
 	"online-store-go/pkg/logger_utils"
 	"strings"
-	"time"
 )
 
 const (
 	queryCreateOrder      = "INSERT INTO orders(user_id, status, total, expired_date) VALUES ($1, $2, $3, $4) RETURNING id"
 	queryInsertOrderItems = "INSERT INTO order_items(order_id, item_id, quantity, price) VALUES "
 	queryFindItemByID     = "SELECT sku, name, stock, price FROM items WHERE id = $1"
+	queryUpdateItemStock  = "UPDATE items SET stock = $1 WHERE id = $2"
 )
 
 type repo struct {
@@ -23,8 +21,8 @@ type repo struct {
 }
 
 type Repo interface {
-	CreateOrder(map[string]interface{}) *error_utils.RestErr
-	FindItemByID(int) (*items.Item, *error_utils.RestErr)
+	CreateOrder(*CreateOrderRequest) *error_utils.RestErr
+	CreateOrderItems(*CreateOrderRequest, []string, []interface{}) *error_utils.RestErr
 }
 
 func NewRepo() Repo {
@@ -33,40 +31,7 @@ func NewRepo() Repo {
 	}
 }
 
-func (r *repo) FindItemByID(id int) (*items.Item, *error_utils.RestErr) {
-	stmt, err := r.Client.Prepare(queryFindItemByID)
-	if err != nil {
-		logger_utils.Error("error when prepare find item by id statement", err)
-		return nil, error_utils.NewInternalServerError("database error")
-	}
-	defer stmt.Close()
-
-	var item items.Item
-	err = stmt.QueryRow(id).Scan(&item.SKU, &item.Name, &item.Stock, &item.Price)
-	if err != nil {
-		logger_utils.Error("error when execute find item by id statement", err)
-		return nil, error_utils.NewInternalServerError("database error")
-	}
-
-	return &item, nil
-}
-
-func (r *repo) CreateOrder(data map[string]interface{}) *error_utils.RestErr {
-	request := CreateOrderRequest{}
-
-	// Order properties
-	if data["user_id"] == nil {
-		return error_utils.NewBadRequestError("user_id is missing")
-	}
-	request.UserID = uint64(data["user_id"].(float64))
-
-	if data["total"] == nil {
-		return error_utils.NewBadRequestError("total is missing")
-	}
-	request.Total = uint64(data["total"].(float64))
-
-	request.ExpiredDate = date_utils.GetDBFormat(time.Now().UTC().Add(10 * time.Hour))
-
+func (r *repo) CreateOrder(request *CreateOrderRequest) *error_utils.RestErr {
 	tx, txErr := r.Client.Begin()
 	if txErr != nil {
 		logger_utils.Error("error when begin transaction", txErr)
@@ -74,7 +39,6 @@ func (r *repo) CreateOrder(data map[string]interface{}) *error_utils.RestErr {
 	}
 
 	// Save Order to database
-
 	stmt, err := r.Client.Prepare(queryCreateOrder)
 	if err != nil {
 		tx.Rollback()
@@ -90,42 +54,24 @@ func (r *repo) CreateOrder(data map[string]interface{}) *error_utils.RestErr {
 		return error_utils.NewInternalServerError("database error")
 	}
 
-	// Order Items
-	valueStrings := []string{}
-	valueArgs := []interface{}{}
-	for k, item := range data["items"].([]interface{}) {
-		orderItem := OrderItem{
-			ItemID:   uint64((item.(map[string]interface{})["item_id"]).(float64)),
-			Quantity: int((item.(map[string]interface{})["quantity"]).(float64)),
-			Price:    int((item.(map[string]interface{})["price"]).(float64)),
-		}
+	txErr = tx.Commit()
+	if txErr != nil {
+		logger_utils.Error("error when commit transaction", txErr)
+		return error_utils.NewInternalServerError("database error")
+	}
 
-		if data["total"] == nil {
-			return error_utils.NewBadRequestError("total is missing")
-		}
+	return nil
+}
 
-		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d)", (k*4)+1, (k*4)+2, (k*4)+3, (k*4)+4))
-		valueArgs = append(valueArgs, request.Order.ID)
-		valueArgs = append(valueArgs, orderItem.ItemID)
-		valueArgs = append(valueArgs, orderItem.Quantity)
-		valueArgs = append(valueArgs, orderItem.Price)
-
-		item, err := r.FindItemByID(int(orderItem.ItemID))
-		if err != nil {
-			return err
-		}
-
-		// validate if the stock is sufficient before order
-		if item.Stock < orderItem.Quantity {
-			tx.Rollback()
-			logger_utils.Error("insufficient stock of items", fmt.Errorf("insufficient stock of items (%s)", item.Name))
-			return error_utils.NewBadRequestError(fmt.Sprintf("insufficient stock of items (%s)", item.Name))
-		}
+func (r *repo) CreateOrderItems(request *CreateOrderRequest, valueStrings []string, valueArgs []interface{}) *error_utils.RestErr {
+	tx, txErr := r.Client.Begin()
+	if txErr != nil {
+		logger_utils.Error("error when begin transaction", txErr)
+		return error_utils.NewInternalServerError("database error")
 	}
 
 	// Save Order Items
-
-	stmt, err = r.Client.Prepare(fmt.Sprintf("%s %s", queryInsertOrderItems, strings.Join(valueStrings, ",")))
+	stmt, err := r.Client.Prepare(fmt.Sprintf("%s %s", queryInsertOrderItems, strings.Join(valueStrings, ",")))
 	if err != nil {
 		tx.Rollback()
 		logger_utils.Error("error when trying to prepare insert order item statement, ", err)
